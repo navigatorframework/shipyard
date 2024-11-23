@@ -1,0 +1,55 @@
+name: Build & Deploy
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+  push:
+    branches:
+      - main
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - run: npx nypm install
+      - run: yarn run generate
+        env:
+          NITRO_PRESET: cloudflare_pages
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact
+          path: ./dist
+
+  deploy:
+    name: Deploy to Cloudflare Pages
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: artifact
+          path: ./dist
+      - name: Publish
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: respondo-dashboard
+          directory: ./dist
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
